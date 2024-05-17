@@ -2,7 +2,7 @@ data "terraform_remote_state" "aws_resources" {
   backend = "local"
  
   config = {
-    path = "../aws_resources/terraform.tfstate"
+    path = "../aws-resources/terraform.tfstate"
   }
 }
 
@@ -31,7 +31,7 @@ module "db_security_group" {
     }
   ]
 
-  tags = var.resource_tags
+  tags = data.terraform_remote_state.aws_resources.outputs.resource_tags
 }
 
 module "key_pair" {
@@ -45,12 +45,12 @@ module "ec2_instance" {
   source  = "terraform-aws-modules/ec2-instance/aws"
   version = "5.6.1"
 
-  depends_on = [module.key_pair, module.s3-bucket]
+  depends_on = [module.key_pair]
 
   name                        = var.db_instance_name
   instance_type               = var.db_instance_type
   ami                         = var.mongodb_ami_id
-  subnet_id                   = data.terraform_remote_state.aws_resources.outputs.public_subnets[0]
+  subnet_id                   = data.terraform_remote_state.aws_resources.outputs.vpc_public_subnets[0]
   vpc_security_group_ids      = [module.db_security_group.security_group_id]
   associate_public_ip_address = true
   key_name                    = var.ec2_key_pair_name
