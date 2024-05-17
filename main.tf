@@ -6,7 +6,7 @@ data "terraform_remote_state" "aws_resources" {
   }
 }
 
-# Retrieve EKS cluster information
+# Get AWS Region information
 provider "aws" {
   region = data.terraform_remote_state.aws_resources.outputs.region
 }
