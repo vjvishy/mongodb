@@ -40,7 +40,22 @@ module "key_pair" {
   key_name            = var.ec2_key_pair_name
   create_private_key  = true
 }
+/*
+module "s3-bucket" {
+  source  = "terraform-aws-modules/s3-bucket/aws"
+  version = "4.1.2"
 
+  bucket = "s3-bucket-${data.terraform_remote_state.aws_resources.outputs.project_name}-${data.terraform_remote_state.aws_resources.outputs.environment}"
+  acl    = "private"
+
+  control_object_ownership = true
+  object_ownership         = "ObjectWriter"
+
+  versioning = {
+    enabled = true
+  }
+}
+*/
 module "ec2_instance" {
   source  = "terraform-aws-modules/ec2-instance/aws"
   version = "5.6.1"
@@ -58,3 +73,22 @@ module "ec2_instance" {
   tags = data.terraform_remote_state.aws_resources.outputs.resource_tags
 }
 
+resource "ssh_resource" "update_mongodb" {
+  depends_on = [module.ec2_instance]
+  triggers = {
+    always_run = "${timestamp()}"
+  }
+
+  host          = "${module.ec2_instance.public_ip}"
+  user          = "ubuntu"
+  private_key   = module.key_pair.private_key_openssh
+
+  timeout     = "5m"
+  retry_delay = "5s"
+
+  commands = [
+    "sudo sed -i -e 's/bindIp: 127.0.0.1/bindIp: ${module.ec2_instance.public_dns}/g' /etc/mongod.conf",
+    "sudo systemctl restart mongod",
+    "mongosh --host ${module.ec2_instance.public_dns}:27017"
+  ]
+}
