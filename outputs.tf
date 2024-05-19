@@ -22,3 +22,8 @@ output "db_instance_private_key" {
   value       = module.key_pair.private_key_openssh
   sensitive   = true
 }
+
+output "s3_bucket_name" {
+  description = "AWS S3 bucket name"
+  value       = module.s3-bucket.s3_bucket_id
+}
