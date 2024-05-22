@@ -1,3 +1,15 @@
+variable "aws_access_key_id" {
+    description = "AWS Access Key Id"
+    type        = string
+    default     = "AKIAQ3EGUX4SKRAQP6EL" 
+}
+
+variable "aws_secret_access_key" {
+    description = "AWS Secret Access Key"
+    type        = string
+    default     = "k/wGjpexJtXlyJMTeAyPJ37z7erz8+aA8wOQbuik" 
+}
+
 # EC2 Instance Key-Pair Name
 variable "ec2_key_pair_name" {
     description = "EC2 Instance Key-Pair Name"
@@ -26,4 +38,24 @@ variable "mongodb_ami_id" {
     default     = "ami-09fc2e89035bdc541"
 }
 
+#MongoDB Database Name
+variable "mongodb_name" {
+    description = "MongoDB Database Name"
+    type        = string
+    default     = "admin"
+}
+
+#MongoDB Database Username
+variable "mongodb_username" {
+    description = "MongoDB Database UserName"
+    type        = string
+    default     = "myUserAdmin"
+}
+
+#MongoDB Database Password
+variable "mongodb_password" {
+    description = "MongoDB Database Password"
+    type        = string
+    default     = "abc123"
+}
 

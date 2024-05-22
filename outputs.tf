@@ -27,3 +27,15 @@ output "s3_bucket_name" {
   description = "AWS S3 bucket name"
   value       = module.s3-bucket.s3_bucket_id
 }
+
+output "mongodb_username" {
+  description = "MongoDB Username"
+  value       = var.mongodb_username
+}
+
+output "mongodb_password" {
+  description = "MongoDB Password"
+  value       = var.mongodb_password
+  sensitive   = true
+}
+

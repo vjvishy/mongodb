@@ -21,6 +21,7 @@ module "db_security_group" {
 
   #ingress_cidr_blocks = module.vpc.public_subnets_cidr_blocks
   ingress_cidr_blocks = [data.terraform_remote_state.aws_resources.outputs.vpc_cidr_block]
+  #ingress_cidr_blocks = ["0.0.0.0"]
   
   ingress_with_cidr_blocks  = [
     {
@@ -28,7 +29,13 @@ module "db_security_group" {
       to_port   = 22
       protocol  = "tcp"
       cidr_blocks = "0.0.0.0/0"
-    }
+    }, 
+    {
+      from_port = 22
+      to_port   = 27017
+      protocol  = "tcp"
+      cidr_blocks = "0.0.0.0/0"
+    }, 
   ]
 
   tags = data.terraform_remote_state.aws_resources.outputs.resource_tags
@@ -70,11 +77,45 @@ module "ec2_instance" {
   associate_public_ip_address = true
   key_name                    = var.ec2_key_pair_name
 
+/*
+  user_data                   = <<-EOF
+                                  #!/bin/bash
+                                  sudo apt-get install awscli
+
+                                  cat <<EOL > ~/.aws/credentials
+                                  [default]
+                                  aws_access_key_id = ${var.aws_access_key_id}
+                                  aws_secret_access_key = ${var.aws_secret_access_key}
+                                  region = ${data.terraform_remote_state.aws_resources.outputs.region}
+                                  EOL
+
+                                  cat <<EOL > create_user.js
+                                  db.createUser({
+                                  user: "${var.mongodb_username}",
+                                  pwd: "${var.mongodb_password}",
+                                  roles: [
+                                    { role: "userAdminAnyDatabase", db: "${var.mongodb_name}" }
+                                  ]
+                                  });
+                                  db.grantRolesToUser("myUserAdmin",["readWrite"])
+                                  EOL
+                                  mongosh "127.0.0.1:27017/admin" create_user.js
+                                EOF
+*/
   tags = data.terraform_remote_state.aws_resources.outputs.resource_tags
 }
 
+resource "local_file" "aws_credentials" {
+  content  = "[default]\n aws_access_key_id = ${var.aws_access_key_id}\n aws_secret_access_key = ${var.aws_secret_access_key}\n region = ${data.terraform_remote_state.aws_resources.outputs.region}"
+  filename = "${path.module}/credentials"
+}
 
-resource "ssh_resource" "update_mongodb" {
+resource "local_file" "create_user" {
+  content  = "db.createUser({\n  user:'${var.mongodb_username}',\n  pwd:'${var.mongodb_password}',\n  roles: [{ role: 'userAdminAnyDatabase', db: '${var.mongodb_name}' }]});\n db.grantRolesToUser('myUserAdmin',['readWrite'])"
+  filename = "${path.module}/create_user.js"
+}
+
+resource "ssh_resource" "create_mongodb_user" {
   depends_on = [module.ec2_instance]
   
   when = "create"
@@ -86,9 +127,87 @@ resource "ssh_resource" "update_mongodb" {
   timeout     = "5m"
   retry_delay = "5s"
 
+  file {
+    source = "${path.module}/create_user.js"
+    destination = "/home/ubuntu/create_user.js"
+    permissions = "0775"
+  }
+
   commands = [
-    "sudo sed -i -e 's/bindIp: 127.0.0.1/bindIp: ${module.ec2_instance.public_dns}/g' /etc/mongod.conf",
-    "sudo systemctl start mongod",
-    "mongosh --host ${module.ec2_instance.public_dns}:27017"
+    "sudo systemctl restart mongod",
+    "mkdir -p ~/.aws",
+    "mongosh '127.0.0.1:27017/admin' create_user.js"
+  ]
+}
+
+resource "ssh_resource" "update_mongodb_config" {
+  depends_on = [module.ec2_instance, ssh_resource.create_mongodb_user]
+  
+  when = "create"
+
+  host          = "${module.ec2_instance.public_ip}"
+  user          = "ubuntu"
+  private_key   = module.key_pair.private_key_openssh
+
+  timeout     = "5m"
+  retry_delay = "5s"
+
+  file {
+    source = "${path.module}/update_mongodb_config.sh"
+    destination = "/home/ubuntu/update_mongodb_config.sh"
+    permissions = "0775"
+  }
+
+  commands = [
+    "./update_mongodb_config.sh ${module.ec2_instance.public_dns}"
+  ]
+}
+
+resource "ssh_resource" "create_aws_credentials" {
+  depends_on = [module.ec2_instance, ssh_resource.update_mongodb_config]
+  
+  when = "create"
+
+  host          = "${module.ec2_instance.public_ip}"
+  user          = "ubuntu"
+  private_key   = module.key_pair.private_key_openssh
+
+  timeout     = "5m"
+  retry_delay = "5s"
+
+  file {
+    source = "${path.module}/credentials"
+    destination = "/home/ubuntu/.aws/credentials"
+    permissions = "0775"
+  }
+
+  commands = [
+    "sudo apt install unzip -y",
+    "curl 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o 'awscliv2.zip'",
+    "unzip awscliv2.zip",
+    "sudo ./aws/install"
+  ]
+}
+
+resource "ssh_resource" "setup_mongodb_backup" {
+  depends_on = [module.ec2_instance, ssh_resource.create_aws_credentials]
+  
+  when = "create"
+
+  host          = "${module.ec2_instance.public_ip}"
+  user          = "ubuntu"
+  private_key   = module.key_pair.private_key_openssh
+
+  timeout     = "5m"
+  retry_delay = "5s"
+
+  file {
+    source = "${path.module}/backup_mongodb.sh"
+    destination = "/home/ubuntu/backup_mongodb.sh"
+    permissions = "0775"
+  }
+
+  commands = [
+    "crontab -l | { cat; echo '*/5 * * * * /home/ubuntu/backup_mongodb.sh ${module.ec2_instance.public_dns} ${var.mongodb_name} ${module.s3-bucket.s3_bucket_id} > /home/ubuntu/backup_mongodb.log'; } | crontab -"
   ]
 }
