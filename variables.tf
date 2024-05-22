@@ -42,7 +42,7 @@ variable "mongodb_ami_id" {
 variable "mongodb_name" {
     description = "MongoDB Database Name"
     type        = string
-    default     = "admin"
+    default     = "go-mongodb"
 }
 
 #MongoDB Database Username

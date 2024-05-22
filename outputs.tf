@@ -39,3 +39,9 @@ output "mongodb_password" {
   sensitive   = true
 }
 
+output "mongodb_name" {
+  description = "MongoDB Database Name"
+  value       = var.mongodb_name
+}
+
+

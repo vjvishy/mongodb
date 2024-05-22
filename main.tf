@@ -63,6 +63,18 @@ module "s3-bucket" {
   }
 }
 
+resource "aws_s3_bucket_public_access_block" "my-bucket" {
+
+  depends_on = [module.s3-bucket]
+
+  bucket = module.s3-bucket.s3_bucket_id
+
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
+}
+
 module "ec2_instance" {
   source  = "terraform-aws-modules/ec2-instance/aws"
   version = "5.6.1"
@@ -77,31 +89,6 @@ module "ec2_instance" {
   associate_public_ip_address = true
   key_name                    = var.ec2_key_pair_name
 
-/*
-  user_data                   = <<-EOF
-                                  #!/bin/bash
-                                  sudo apt-get install awscli
-
-                                  cat <<EOL > ~/.aws/credentials
-                                  [default]
-                                  aws_access_key_id = ${var.aws_access_key_id}
-                                  aws_secret_access_key = ${var.aws_secret_access_key}
-                                  region = ${data.terraform_remote_state.aws_resources.outputs.region}
-                                  EOL
-
-                                  cat <<EOL > create_user.js
-                                  db.createUser({
-                                  user: "${var.mongodb_username}",
-                                  pwd: "${var.mongodb_password}",
-                                  roles: [
-                                    { role: "userAdminAnyDatabase", db: "${var.mongodb_name}" }
-                                  ]
-                                  });
-                                  db.grantRolesToUser("myUserAdmin",["readWrite"])
-                                  EOL
-                                  mongosh "127.0.0.1:27017/admin" create_user.js
-                                EOF
-*/
   tags = data.terraform_remote_state.aws_resources.outputs.resource_tags
 }
 
@@ -111,7 +98,7 @@ resource "local_file" "aws_credentials" {
 }
 
 resource "local_file" "create_user" {
-  content  = "db.createUser({\n  user:'${var.mongodb_username}',\n  pwd:'${var.mongodb_password}',\n  roles: [{ role: 'userAdminAnyDatabase', db: '${var.mongodb_name}' }]});\n db.grantRolesToUser('myUserAdmin',['readWrite'])"
+  content  = "db.createUser({\n  user:'${var.mongodb_username}',\n  pwd:'${var.mongodb_password}',\n  roles: [{ role: 'userAdminAnyDatabase', db: 'admin' }]});\ndb.grantRolesToUser('myUserAdmin',['readWriteAnyDatabase'])"
   filename = "${path.module}/create_user.js"
 }
 
@@ -208,6 +195,6 @@ resource "ssh_resource" "setup_mongodb_backup" {
   }
 
   commands = [
-    "crontab -l | { cat; echo '*/5 * * * * /home/ubuntu/backup_mongodb.sh ${module.ec2_instance.public_dns} ${var.mongodb_name} ${module.s3-bucket.s3_bucket_id} > /home/ubuntu/backup_mongodb.log'; } | crontab -"
+    "crontab -l | { cat; echo '*/30 * * * * /home/ubuntu/backup_mongodb.sh ${module.ec2_instance.public_dns} ${var.mongodb_name} ${module.s3-bucket.s3_bucket_id} > /home/ubuntu/backup_mongodb.log'; } | crontab -"
   ]
 }

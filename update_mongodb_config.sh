@@ -10,7 +10,7 @@ fi
 PUBLIC_DNS=$1
 
 # Update the MongoDB configuration file to bind to the public DNS
-sudo sed -i "s/bindIp: 127.0.0.1/bindIp: 127.0.0.1,$PUBLIC_DNS/g" /etc/mongod.conf
+sudo sed -i "s/bindIp: 127.0.0.1/bindIp: $PUBLIC_DNS/g" /etc/mongod.conf
 echo "Updated bindIp in /etc/mongod.conf to make it publicly available"
 
 # Update the MongoDB configuration file to enable authorization
