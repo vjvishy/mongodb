@@ -18,5 +18,7 @@ sudo sed -i "s/#security:/security:\n  authorization: enabled/g" /etc/mongod.con
 echo "Updated security parameter in /etc/mongod.conf to enable authorization"
 
 # Restart the MongoDB service to apply the new configuration
-sudo systemctl restart mongod
-echo "Restarted mongod system service"
+#sudo systemctl restart mongod
+#echo "Restarted mongod system service"
+
+wait

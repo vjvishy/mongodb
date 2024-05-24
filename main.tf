@@ -90,6 +90,8 @@ module "ec2_instance" {
   associate_public_ip_address = true
   key_name                    = var.ec2_key_pair_name
 
+  iam_instance_profile        = "${aws_iam_instance_profile.ec2_profile.name}"
+
   tags = data.terraform_remote_state.aws_resources.outputs.resource_tags
 }
 
@@ -147,7 +149,8 @@ resource "ssh_resource" "update_mongodb_config" {
   }
 
   commands = [
-    "./update_mongodb_config.sh ${module.ec2_instance.public_dns}"
+    "./update_mongodb_config.sh ${module.ec2_instance.public_dns}",
+    "sudo systemctl restart mongod"
   ]
 }
 
